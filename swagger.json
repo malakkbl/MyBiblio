@@ -1,0 +1,185 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Online Bookstore API",
+    "description": "API documentation for the Online Bookstore project",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/books": {
+      "get": {
+        "summary": "Search for books",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search criteria for books",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SearchCriteria"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results or all books",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Book"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/books/{id}": {
+      "get": {
+        "summary": "Get book by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Details of the book",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Book" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update a book by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Book" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Book updated successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Book" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a book by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Book deleted successfully" }
+        }
+      }
+    },
+    "/sales-reports": {
+      "get": {
+        "summary": "Retrieve all sales reports",
+        "responses": {
+          "200": {
+            "description": "List of sales reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SalesReport" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Book": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "author": { "$ref": "#/components/schemas/Author" },
+          "genres": { "type": "array", "items": { "type": "string" } },
+          "published_at": { "type": "string", "format": "date-time" },
+          "price": { "type": "number", "format": "float" },
+          "stock": { "type": "integer" }
+        }
+      },
+      "SearchCriteria": {
+        "type": "object",
+        "properties": {
+          "titles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "authors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "genres": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "min_price": { "type": "number", "format": "float" },
+          "max_price": { "type": "number", "format": "float" }
+        }
+      },
+      "SalesReport": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "total_revenue": { "type": "number", "format": "float" },
+          "total_orders": { "type": "integer" },
+          "top_selling_books": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BookSales" }
+          }
+        }
+      },
+      "BookSales": {
+        "type": "object",
+        "properties": {
+          "book": { "$ref": "#/components/schemas/Book" },
+          "quantity": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
