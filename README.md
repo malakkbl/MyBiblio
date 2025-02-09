@@ -1,78 +1,141 @@
-![MyBiblio Logo](./assets/MyBiblio_transparent-2.png)
-# **MyBiblio - Online Bookstore API**
 
-## **Description**
+# MyBiblio - Online Bookstore API
 
----
+## Description
 
-## **Collaborators**
+**MyBiblio** is an advanced RESTful API for managing an online bookstore. It allows users to manage books, authors, customers, and orders while generating periodic sales reports to analyze performance.
 
 ---
 
-## **Features**
-### Core Functionalities:
-- CRUD operations for books, authors, customers, and orders.
-- Automated daily sales report generation.
+## Collaborators
 
-### Advanced Features:
-- Sales reports with metrics such as total revenue, top-selling books, etc.
+- **[Kably Malak]**
+- Project Advisor: **[Abdelghafour Mourchid]**
 
 ---
 
-## **Technical Requirements**
-- **Language**: Go
-- **Tools**: Swagger, Postman, cURL
-- **Dependencies**: List key libraries/frameworks.
+## Features
+
+### Current Features
+- **Books Management**
+  - Add, update, delete, and search for books.
+- **Authors Management**
+  - Add, update, delete, and list authors.
+- **Customers Management**
+  - Add, update, delete, and list customers.
+- **Orders Management**
+  - Create, update, delete, and view orders.
+- **Sales Reports**
+  - Automatically generate daily sales reports, including:
+    - Total revenue.
+    - Total number of orders.
+    - Total books sold.
+    - Top-selling books.
+
+### Planned Features
+- Implementing a database with **PostgreSQL** or **SQLite**.
+- Adding authentication and authorization (JWT-based).
+- Comprehensive input validation.
+- Caching support (using **Redis** or **Valkey**).
+- Containerization with **Docker**.
+- CI/CD pipelines using **GitHub Actions**.
+- Monitoring and logging with **Prometheus**.
+- Rate limiting to prevent abuse.
+- Database migrations using **Flyway**.
 
 ---
 
-## **Project Structure**
-- Highlight key directories and files (e.g., `database/`, `handlers/`, `models/`).
-- Provide brief descriptions of their purposes.
+## Technical Requirements
+
+- **Go 1.20+**
+- **Postman** or **Swagger UI** for API testing.
+- **Git** for version control.
 
 ---
 
-## **Installation Instructions**
-### Prerequisites:
-- Mention Go installation.
-- Clone repository instructions.
+## Installation Instructions
 
-### Steps:
-- Instructions to navigate the directory and run the application.
+### Prerequisites
+1. Ensure you have **Go** installed ([Install Go](https://go.dev/)).
+2. Clone the repository to your local machine:
+   ```bash
+   git clone https://github.com/yourusername/MyBiblio.git
+   cd MyBiblio
+   ```
 
----
-
-## **Usage Examples**
-- Brief examples on how to test API endpoints (e.g., with Postman or Swagger).
-- Mention the available endpoints (books, authors, orders, etc.).
-
----
-
-## **Manual Testing**
-- Provide example requests for key endpoints:
-  - **Books**: Create, search, update, delete.
-  - **Authors**: Create, retrieve, update, delete.
-  - **Orders**: Create, retrieve, update, delete.
-  - **Sales Reports**: Retrieve generated reports.
+### Steps to Run
+1. Run the application:
+   ```bash
+   go run main.go
+   ```
+2. Access the API at `http://localhost:8080`.
 
 ---
 
-## **API Documentation**
-- Reference to `swagger.json` for API testing and exploration.
+## Usage Examples
+
+### Basic Endpoints
+#### Books
+- **Create a Book**
+  ```bash
+  curl -X POST -H "Content-Type: application/json" -d '{
+      "title": "The Go Programming Language",
+      "author": { "id": 1, "first_name": "Alan", "last_name": "Donovan" },
+      "genres": ["Programming"],
+      "price": 45.99,
+      "stock": 100
+  }' http://localhost:8080/books
+  ```
+
+- **Get All Books**
+  ```bash
+  curl http://localhost:8080/books
+  ```
 
 ---
 
-## **Contributing Guidelines**
-- Mention the process for contributing:
-  1. Fork the repository.
-  2. Create a branch for new features or bug fixes.
-  3. Submit a pull request.
+## API Documentation
+
+The full API documentation is available in the `swagger.json` file. Use tools like [Swagger UI](https://swagger.io/tools/swagger-ui/) to visualize and interact with the API.
+
+### Key Endpoints
+#### Books
+- `GET /books`
+- `POST /books`
+- `GET /books/{id}`
+- `PUT /books/{id}`
+- `DELETE /books/{id}`
+
+#### Authors
+- `GET /authors`
+- `POST /authors`
+- `GET /authors/{id}`
+- `PUT /authors/{id}`
+- `DELETE /authors/{id}`
+
+#### Sales Reports
+- `GET /sales-reports`
 
 ---
 
-## **License**
-- Add the license name (e.g., MIT, Apache 2.0) and a link to the detailed license text.
+## Contributing
+
+We welcome contributions to improve MyBiblio. To contribute:
+1. Fork the repository.
+2. Create a new branch (`feature/your-feature-name`).
+3. Commit your changes.
+4. Push your branch and create a Pull Request.
+
+Refer to [GitHub's guide on contributing](https://docs.github.com/en/get-started/quickstart/contributing-to-projects) for best practices.
 
 ---
 
-This outline provides a clear structure to organize your README content effectively while leaving space for details to be filled in later.
+## License
+
+This project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/). Feel free to use and modify it.
+
+---
+
+## Acknowledgments
+
+Thanks to all collaborators and contributors for their hard work and dedication to this project.
