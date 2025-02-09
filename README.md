@@ -1,4 +1,4 @@
-![MyBiblio Logo](assets\MyBiblio_transparent-2.png)
+![MyBiblio Logo](./assets/MyBiblio_transparent-2.png)
 # **MyBiblio - Online Bookstore API**
 
 ## **Description**
