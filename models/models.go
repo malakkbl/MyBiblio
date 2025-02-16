@@ -1,70 +1,90 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
+// Book Model
 type Book struct {
-	ID          int       `json:"id"`
-	Title       string    `json:"title"`
-	Author      Author    `json:"author"`
-	Genres      []string  `json:"genres"`
-	PublishedAt time.Time `json:"published_at"`
-	Price       float64   `json:"price"`
-	Stock       int       `json:"stock"`
+	ID          int `gorm:"primaryKey;autoIncrement"`
+	Title       string
+	AuthorID    int
+	Author      Author `gorm:"foreignKey:AuthorID"`
+	Genres      string
+	PublishedAt time.Time
+	Price       float64
+	Stock       int
 }
 
+// Author Model
 type Author struct {
-	ID        int    `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Bio       string `json:"bio"`
+	ID        int `gorm:"primaryKey;autoIncrement"`
+	FirstName string
+	LastName  string
+	Bio       string
 }
 
+// Customer Model
 type Customer struct {
-	ID        int       `json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Address   Address   `json:"address"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int `gorm:"primaryKey;autoIncrement"`
+	Name      string
+	Email     string  `gorm:"unique"`
+	Address   Address `gorm:"embedded"`
+	CreatedAt time.Time
 }
 
-type Order struct {
-	ID         int         `json:"id"`
-	Customer   Customer    `json:"customer"`
-	Items      []OrderItem `json:"items"`
-	TotalPrice float64     `json:"total_price"`
-	CreatedAt  time.Time   `json:"created_at"`
-	Status     string      `json:"status"`
-}
-
-type OrderItem struct {
-	Book     Book `json:"book"`
-	Quantity int  `json:"quantity"`
-}
-
+// Address Model
 type Address struct {
-	Street     string `json:"street"`
-	City       string `json:"city"`
-	State      string `json:"state"`
-	PostalCode string `json:"postal_code"`
-	Country    string `json:"country"`
+	Street     string
+	City       string
+	State      string
+	PostalCode string
+	Country    string
 }
 
+// Order Model
+type Order struct {
+	ID         int `gorm:"primaryKey;autoIncrement"`
+	CustomerID int
+	Customer   Customer    `gorm:"foreignKey:CustomerID"`
+	Items      []OrderItem `gorm:"foreignKey:OrderID"`
+	TotalPrice float64
+	CreatedAt  time.Time
+	Status     string
+}
+
+// OrderItem Model
+type OrderItem struct {
+	ID       int `gorm:"primaryKey;autoIncrement"`
+	OrderID  int
+	BookID   int
+	Book     Book `gorm:"foreignKey:BookID"`
+	Quantity int
+}
+
+// SalesReport Model
 type SalesReport struct {
-	Timestamp       time.Time   `json:"timestamp"`
-	TotalRevenue    float64     `json:"total_revenue"`
-	TotalOrders     int         `json:"total_orders"`
-	TopSellingBooks []BookSales `json:"top_selling_books"`
+	ID              int `gorm:"primaryKey;autoIncrement"`
+	Timestamp       time.Time
+	TotalRevenue    float64
+	TotalOrders     int
+	TopSellingBooks []BookSales `gorm:"foreignKey:ReportID"`
 }
 
+// BookSales Model
 type BookSales struct {
-	Book     Book `json:"book"`
-	Quantity int  `json:"quantity_sold"`
+	ID       int `gorm:"primaryKey;autoIncrement"`
+	ReportID int
+	BookID   int
+	Book     Book `gorm:"foreignKey:BookID"`
+	Quantity int
 }
 
+// SearchCriteria Model
 type SearchCriteria struct {
-	Titles   []string `json:"titles"`
-	Authors  []string `json:"authors"`
-	Genres   []string `json:"genres"`
-	MinPrice float64  `json:"min_price"`
-	MaxPrice float64  `json:"max_price"`
+	Titles   []string
+	Authors  []string
+	Genres   []string
+	MinPrice float64
+	MaxPrice float64
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 
 	"um6p.ma/finalproject/errorhandling"
@@ -136,9 +137,12 @@ func (store *InMemoryBookStore) SearchBooks(ctx context.Context, criteria models
 			}
 		} else if len(criteria.Genres) > 0 {
 			for _, genre := range criteria.Genres {
-				for _, bookGenre := range book.Genres {
+				bookGenres := strings.Split(book.Genres, ", ")
+
+				for _, bookGenre := range bookGenres {
 					if genre == bookGenre {
 						results = append(results, book)
+						break
 					}
 				}
 			}
