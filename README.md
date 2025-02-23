@@ -9,8 +9,8 @@
 
 ## Collaborators
 
-- **[Kably Malak]**
-- Project Advisor: **[Abdelghafour Mourchid]**
+- **Kably Malak**
+- Project Advisor: **Abdelghafour Mourchid**
 
 ---
 
@@ -32,16 +32,17 @@
     - Total books sold.
     - Top-selling books.
 
-### Planned Features
-- Implementing a database with **PostgreSQL** or **SQLite**.
-- Adding authentication and authorization (JWT-based).
-- Comprehensive input validation.
-- Caching support (using **Redis** or **Valkey**).
-- Containerization with **Docker**.
-- CI/CD pipelines using **GitHub Actions**.
-- Monitoring and logging with **Prometheus**.
-- Rate limiting to prevent abuse.
-- Database migrations using **Flyway**.
+### Planned Milestones
+
+Our project follows a structured development roadmap. You can track our progress through the **Milestones** section on GitHub.
+
+#### **Current Milestones:**
+- **Milestone 1:** Implement a Database (PostgreSQL with GORM).
+- **Milestone 2:** Authentication & Authorization (JWT-based security).
+- **Milestone 3:** Input Validation & Error Handling.
+- **Milestone 4:** Caching & Comprehensive Testing.
+- **Milestone 5:** Containerization, CI/CD Pipeline, Monitoring & Logging.
+- **Milestone 6:** Database Migrations using Flyway.
 
 ---
 
