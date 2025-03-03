@@ -48,6 +48,7 @@ func ConnectDatabase() {
 		&models.OrderItem{},
 		&models.SalesReport{},
 		&models.BookSales{},
+		&models.User{},
 	)
 	if err != nil {
 		log.Fatal("Migration failed:", err)
