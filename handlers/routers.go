@@ -1,32 +1,53 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/julienschmidt/httprouter"
 )
 
-// SetupRouter initializes and returns the router
-func SetupRouter() *gin.Engine {
-	router := gin.Default()
+// SetupRouter initializes and returns the router (using `httprouter`)
+func SetupRouter() *httprouter.Router {
+	router := httprouter.New()
+
+	// Initialize handlers
+	bookHandler := &BookHandler{}
+	authorHandler := &AuthorHandler{}
+	customerHandler := &CustomerHandler{}
+	orderHandler := &OrderHandler{}
 
 	// Authentication Routes
-	router.POST("/register", RegisterUser) // User registration
-	router.POST("/login", LoginUser)       // User login
+	router.POST("/login", LoginUser)
+	router.POST("/register", RegisterUser)
 
 	// Books
-	router.GET("/books", GetBooks)
-	router.POST("/books", CreateBook)
+	router.GET("/books/:id", bookHandler.GetBookByIDHandler)
+	router.POST("/books", bookHandler.CreateBookHandler)
+	router.PUT("/books/:id", bookHandler.UpdateBookHandler)
+	router.DELETE("/books/:id", bookHandler.DeleteBookHandler)
+	router.GET("/books", bookHandler.SearchBooksHandler)
 
 	// Authors
-	router.GET("/authors", GetAuthors)
-	router.POST("/authors", CreateAuthor)
+	router.GET("/authors/:id", authorHandler.GetAuthorByIDHandler)
+	router.POST("/authors", authorHandler.CreateAuthorHandler)
+	router.PUT("/authors/:id", authorHandler.UpdateAuthorHandler)
+	router.DELETE("/authors/:id", authorHandler.DeleteAuthorHandler)
+	router.GET("/authors", authorHandler.ListAuthorsHandler)
 
 	// Customers
-	router.GET("/customers", GetCustomers)
-	router.POST("/customers", CreateCustomer)
+	router.GET("/customers/:id", customerHandler.GetCustomerByIDHandler)
+	router.POST("/customers", customerHandler.CreateCustomerHandler)
+	router.PUT("/customers/:id", customerHandler.UpdateCustomerHandler)
+	router.DELETE("/customers/:id", customerHandler.DeleteCustomerHandler)
+	router.GET("/customers", customerHandler.ListCustomersHandler)
 
 	// Orders
-	router.GET("/orders", GetOrders)
-	router.POST("/orders", CreateOrder)
+	router.GET("/orders", orderHandler.GetAllOrdersHandler)
+	router.GET("/orders/:id", orderHandler.GetOrderByIDHandler)
+	router.POST("/orders", orderHandler.CreateOrderHandler)
+	router.PUT("/orders/:id", orderHandler.UpdateOrderHandler)
+	router.DELETE("/orders/:id", orderHandler.DeleteOrderHandler)
+
+	// Sales Reports
+	router.GET("/sales-reports", GetSalesReportHandler)
 
 	return router
 }

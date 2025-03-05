@@ -90,9 +90,9 @@ type SearchCriteria struct {
 }
 
 type User struct {
-	ID       int    `gorm:"primaryKey;autoIncrement"`
-	Name     string `gorm:"not null"`
-	Email    string `gorm:"unique;not null"`
-	Password string `gorm:"not null"`
-	Role     string `gorm:"default:user"`
+	ID       int `gorm:"primaryKey;autoIncrement"`
+	Name     string
+	Email    string `gorm:"unique"`
+	Password string
+	Role     string
 }

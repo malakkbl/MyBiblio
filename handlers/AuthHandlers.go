@@ -1,44 +1,87 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/crypto/bcrypt"
+
 	"um6p.ma/finalproject/database"
 	"um6p.ma/finalproject/models"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/crypto/bcrypt"
 )
 
-// Secret key for JWT
+// Secret key for JWT (from environment variable)
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
+// RegisterUser handles user registration
+func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var input struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Role     string `json:"role"` // Admin/User roles
+	}
+
+	// Decode JSON request body
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Create new user object
+	user := models.User{
+		Name:     input.Name,
+		Email:    input.Email,
+		Password: string(hashedPassword),
+		Role:     input.Role,
+	}
+
+	// Save user in the database
+	if err := database.DB.Create(&user).Error; err != nil {
+		http.Error(w, "Could not create user", http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "User registered successfully"})
+}
+
 // LoginUser handles user authentication and token generation
-func LoginUser(c *gin.Context) {
-	var user models.User
+func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
+	var user models.User
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+	// Decode JSON request body
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Check if user exists
-	database.DB.Where("email = ?", input.Email).First(&user)
-	if user.ID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+	// Find user by email
+	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	// Compare hashed password
+	// Check password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
@@ -46,9 +89,15 @@ func LoginUser(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(),
+		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24h
 	})
-	tokenString, _ := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	// Return token response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
 }
