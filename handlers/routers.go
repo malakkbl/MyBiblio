@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/julienschmidt/httprouter"
 	"um6p.ma/finalproject/inmemorystores"
+	"um6p.ma/finalproject/middlewares"
 )
 
 // SetupRouter initializes and returns the router (using `httprouter`)
@@ -20,40 +23,75 @@ func SetupRouter() *httprouter.Router {
 
 	router := httprouter.New()
 
-	// Authentication Routes
+	// Authentication (No protection)
 	router.POST("/login", LoginUser)
 	router.POST("/register", RegisterUser)
 
-	// Books
-	router.GET("/books/:id", bookHandler.GetBookByIDHandler)
-	router.POST("/books", bookHandler.CreateBookHandler)
-	router.PUT("/books/:id", bookHandler.UpdateBookHandler)
-	router.DELETE("/books/:id", bookHandler.DeleteBookHandler)
-	router.GET("/books", bookHandler.SearchBooksHandler)
+	// Protected Routes - Authenticated Users (Any user can access)
+	router.GET("/books/:id", wrapMiddleware(bookHandler.GetBookByIDHandler))
+	router.GET("/books", wrapMiddleware(bookHandler.SearchBooksHandler))
+	router.GET("/authors/:id", wrapMiddleware(authorHandler.GetAuthorByIDHandler))
+	router.GET("/authors", wrapMiddleware(authorHandler.ListAuthorsHandler))
+	router.GET("/customers/:id", wrapMiddleware(customerHandler.GetCustomerByIDHandler))
+	router.GET("/customers", wrapMiddleware(customerHandler.ListCustomersHandler))
+	router.GET("/orders", wrapMiddleware(orderHandler.GetAllOrdersHandler))
+	router.GET("/orders/:id", wrapMiddleware(orderHandler.GetOrderByIDHandler))
+	router.GET("/sales-reports", wrapMiddleware(GetSalesReportHandler))
 
-	// Authors
-	router.GET("/authors/:id", authorHandler.GetAuthorByIDHandler)
-	router.POST("/authors", authorHandler.CreateAuthorHandler)
-	router.PUT("/authors/:id", authorHandler.UpdateAuthorHandler)
-	router.DELETE("/authors/:id", authorHandler.DeleteAuthorHandler)
-	router.GET("/authors", authorHandler.ListAuthorsHandler)
+	// Admin Only Routes
+	router.POST("/books", wrapAdminMiddleware(bookHandler.CreateBookHandler))
+	router.PUT("/books/:id", wrapAdminMiddleware(bookHandler.UpdateBookHandler))
+	router.DELETE("/books/:id", wrapAdminMiddleware(bookHandler.DeleteBookHandler))
 
-	// Customers
-	router.GET("/customers/:id", customerHandler.GetCustomerByIDHandler)
-	router.POST("/customers", customerHandler.CreateCustomerHandler)
-	router.PUT("/customers/:id", customerHandler.UpdateCustomerHandler)
-	router.DELETE("/customers/:id", customerHandler.DeleteCustomerHandler)
-	router.GET("/customers", customerHandler.ListCustomersHandler)
+	router.POST("/authors", wrapAdminMiddleware(authorHandler.CreateAuthorHandler))
+	router.PUT("/authors/:id", wrapAdminMiddleware(authorHandler.UpdateAuthorHandler))
+	router.DELETE("/authors/:id", wrapAdminMiddleware(authorHandler.DeleteAuthorHandler))
 
-	// Orders
-	router.GET("/orders", orderHandler.GetAllOrdersHandler)
-	router.GET("/orders/:id", orderHandler.GetOrderByIDHandler)
-	router.POST("/orders", orderHandler.CreateOrderHandler)
-	router.PUT("/orders/:id", orderHandler.UpdateOrderHandler)
-	router.DELETE("/orders/:id", orderHandler.DeleteOrderHandler)
+	router.POST("/customers", wrapAdminMiddleware(customerHandler.CreateCustomerHandler))
+	router.PUT("/customers/:id", wrapAdminMiddleware(customerHandler.UpdateCustomerHandler))
+	router.DELETE("/customers/:id", wrapAdminMiddleware(customerHandler.DeleteCustomerHandler))
 
-	// Sales Reports
-	router.GET("/sales-reports", GetSalesReportHandler)
+	// Orders - Any user can create an order, but only the owner or admin can modify/delete
+	router.POST("/orders", wrapMiddleware(orderHandler.CreateOrderHandler))
+	router.PUT("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.UpdateOrderHandler))
+	router.DELETE("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.DeleteOrderHandler))
 
 	return router
+}
+
+// Middleware Wrappers
+func wrapMiddleware(handler httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		// Apply authentication middleware
+		authMiddleware := middlewares.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler(w, r, ps)
+		}))
+
+		// Serve request
+		authMiddleware.ServeHTTP(w, r)
+	}
+}
+
+func wrapAdminMiddleware(handler httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		// Apply authentication and admin check middleware
+		adminMiddleware := middlewares.AdminOnlyMiddleware(middlewares.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler(w, r, ps)
+		})))
+
+		// Serve request
+		adminMiddleware.ServeHTTP(w, r)
+	}
+}
+
+func wrapOwnerOrAdminMiddleware(handler httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		// Apply authentication and role-based middleware
+		middleware := middlewares.OwnerOrAdminMiddleware(middlewares.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler(w, r, ps)
+		})))
+
+		// Serve request
+		middleware.ServeHTTP(w, r)
+	}
 }
