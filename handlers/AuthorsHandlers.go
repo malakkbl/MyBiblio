@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
+	"um6p.ma/finalproject/database"
 	"um6p.ma/finalproject/interfaces"
 	"um6p.ma/finalproject/models"
 )
@@ -14,6 +15,7 @@ type AuthorHandler struct {
 	Store interfaces.AuthorStore
 }
 
+// GetAuthorByIDHandler retrieves an author by ID from the database
 func (h *AuthorHandler) GetAuthorByIDHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
@@ -22,8 +24,8 @@ func (h *AuthorHandler) GetAuthorByIDHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	author, err := h.Store.GetAuthor(ctx, id)
-	if err != nil {
+	var author models.Author
+	if err := database.DB.WithContext(ctx).First(&author, id).Error; err != nil {
 		http.Error(w, "Author not found", http.StatusNotFound)
 		return
 	}
@@ -32,26 +34,27 @@ func (h *AuthorHandler) GetAuthorByIDHandler(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(author)
 }
 
+// CreateAuthorHandler adds a new author to the database
 func (h *AuthorHandler) CreateAuthorHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	ctx := r.Context()
 	var newAuthor models.Author
-	err := json.NewDecoder(r.Body).Decode(&newAuthor)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&newAuthor); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	createdAuthor, err := h.Store.CreateAuthor(ctx, newAuthor)
-	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	// Insert into the database
+	if err := database.DB.WithContext(ctx).Create(&newAuthor).Error; err != nil {
+		http.Error(w, "Failed to add author", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(createdAuthor)
+	json.NewEncoder(w).Encode(newAuthor)
 }
 
+// UpdateAuthorHandler modifies an existing author in the database
 func (h *AuthorHandler) UpdateAuthorHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
@@ -61,22 +64,22 @@ func (h *AuthorHandler) UpdateAuthorHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	var updatedAuthor models.Author
-	err = json.NewDecoder(r.Body).Decode(&updatedAuthor)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&updatedAuthor); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	author, err := h.Store.UpdateAuthor(ctx, id, updatedAuthor)
-	if err != nil {
-		http.Error(w, "Author not found", http.StatusNotFound)
+	// Update in the database
+	if err := database.DB.WithContext(ctx).Model(&models.Author{}).Where("id = ?", id).Updates(updatedAuthor).Error; err != nil {
+		http.Error(w, "Author not found or update failed", http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(author)
+	json.NewEncoder(w).Encode(updatedAuthor)
 }
 
+// DeleteAuthorHandler removes an author from the database
 func (h *AuthorHandler) DeleteAuthorHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
@@ -85,19 +88,21 @@ func (h *AuthorHandler) DeleteAuthorHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = h.Store.DeleteAuthor(ctx, id)
-	if err != nil {
-		http.Error(w, "Author not found", http.StatusNotFound)
+	// Delete from the database
+	if err := database.DB.WithContext(ctx).Delete(&models.Author{}, id).Error; err != nil {
+		http.Error(w, "Author not found or delete failed", http.StatusNotFound)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListAuthorsHandler retrieves all authors from the database
 func (h *AuthorHandler) ListAuthorsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	ctx := r.Context()
-	authors, err := h.Store.GetAllAuthors(ctx)
-	if err != nil {
+	var authors []models.Author
+
+	if err := database.DB.WithContext(ctx).Find(&authors).Error; err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

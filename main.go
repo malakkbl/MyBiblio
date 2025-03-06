@@ -36,6 +36,8 @@ func main() {
 		Handler: router,
 	}
 
+	fmt.Println("🚀 Server is running on http://localhost:8080")
+
 	// Start the server in a goroutine
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

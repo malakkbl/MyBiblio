@@ -20,7 +20,7 @@ func GenerateSalesReport(ctx context.Context) (models.SalesReport, error) {
 
 	// Fetch all orders from the last 24 hours
 	var orders []models.Order
-	if err := database.DB.Where("created_at BETWEEN ? AND ?", startTime, endTime).Find(&orders).Error; err != nil {
+	if err := database.DB.Preload("Items").Where("created_at BETWEEN ? AND ?", startTime, endTime).Find(&orders).Error; err != nil {
 		return models.SalesReport{}, err
 	}
 
@@ -55,7 +55,7 @@ func GenerateSalesReport(ctx context.Context) (models.SalesReport, error) {
 		return models.SalesReport{}, err
 	}
 
-	log.Println("Sales report generated successfully!")
+	log.Println("✅ Sales report generated successfully!")
 	return report, nil
 }
 
@@ -66,6 +66,7 @@ func calculateTopSellingBooks(bookSalesMap map[int]int) ([]models.BookSales, err
 	for bookID, quantity := range bookSalesMap {
 		var book models.Book
 		if err := database.DB.First(&book, bookID).Error; err != nil {
+			log.Printf("⚠️ Skipping book ID %d due to error: %v", bookID, err)
 			continue
 		}
 		bookSales = append(bookSales, models.BookSales{
@@ -108,12 +109,12 @@ func StartSalesReportGeneration(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Sales report generation stopped.")
+			log.Println("🛑 Sales report generation stopped.")
 			return
 		case <-ticker.C:
 			_, err := GenerateSalesReport(ctx)
 			if err != nil {
-				log.Printf("Error generating sales report: %v", err)
+				log.Printf("❌ Error generating sales report: %v", err)
 			}
 		}
 	}

@@ -2,17 +2,23 @@ package handlers
 
 import (
 	"github.com/julienschmidt/httprouter"
+	"um6p.ma/finalproject/inmemorystores"
 )
 
 // SetupRouter initializes and returns the router (using `httprouter`)
 func SetupRouter() *httprouter.Router {
-	router := httprouter.New()
 
-	// Initialize handlers
-	bookHandler := &BookHandler{}
-	authorHandler := &AuthorHandler{}
-	customerHandler := &CustomerHandler{}
-	orderHandler := &OrderHandler{}
+	bookStore := inmemorystores.NewInMemoryBookStore()
+	authorStore := inmemorystores.NewInMemoryAuthorStore()
+	customerStore := inmemorystores.NewInMemoryCustomerStore()
+	orderStore := inmemorystores.NewInMemoryOrderStore(bookStore)
+
+	bookHandler := BookHandler{Store: bookStore}
+	authorHandler := AuthorHandler{Store: authorStore}
+	customerHandler := CustomerHandler{Store: customerStore}
+	orderHandler := OrderHandler{Store: orderStore}
+
+	router := httprouter.New()
 
 	// Authentication Routes
 	router.POST("/login", LoginUser)

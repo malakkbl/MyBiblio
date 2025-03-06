@@ -1,0 +1,17 @@
+[
+  {
+    "ID": 1,
+    "Title": "Golang en Action",
+    "AuthorID": 0,
+    "Author": {
+      "ID": 0,
+      "FirstName": "",
+      "LastName": "",
+      "Bio": ""
+    },
+    "Genres": "Programmation",
+    "PublishedAt": "0001-01-01T00:00:00Z",
+    "Price": 49.99,
+    "Stock": 10
+  }
+]
