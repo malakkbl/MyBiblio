@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
+	"um6p.ma/finalproject/database"
 	"um6p.ma/finalproject/inmemorystores"
 	"um6p.ma/finalproject/middlewares"
+	"um6p.ma/finalproject/models"
 )
 
 // SetupRouter initializes and returns the router (using `httprouter`)
@@ -53,8 +56,8 @@ func SetupRouter() *httprouter.Router {
 
 	// Orders - Any user can create an order, but only the owner or admin can modify/delete
 	router.POST("/orders", wrapMiddleware(orderHandler.CreateOrderHandler))
-	router.PUT("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.UpdateOrderHandler))
-	router.DELETE("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.DeleteOrderHandler))
+	router.PUT("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.UpdateOrderHandler, extractOrderOwnerID))
+	router.DELETE("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.DeleteOrderHandler, extractOrderOwnerID))
 
 	return router
 }
@@ -84,14 +87,26 @@ func wrapAdminMiddleware(handler httprouter.Handle) httprouter.Handle {
 	}
 }
 
-func wrapOwnerOrAdminMiddleware(handler httprouter.Handle) httprouter.Handle {
+func wrapOwnerOrAdminMiddleware(handler httprouter.Handle, extractOwnerID func(*http.Request) int) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// Apply authentication and role-based middleware
-		middleware := middlewares.OwnerOrAdminMiddleware(middlewares.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		middleware := middlewares.OwnerOrAdminMiddleware(extractOwnerID, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			handler(w, r, ps)
-		})))
-
-		// Serve request
+		}))
 		middleware.ServeHTTP(w, r)
 	}
+}
+
+func extractOrderOwnerID(r *http.Request) int {
+	params := httprouter.ParamsFromContext(r.Context())
+	orderID, err := strconv.Atoi(params.ByName("id"))
+	if err != nil {
+		return 0
+	}
+
+	// Fetch the order from the database
+	var order models.Order
+	if err := database.DB.First(&order, orderID).Error; err != nil {
+		return 0
+	}
+	return order.CustomerID
 }
