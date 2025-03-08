@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -22,31 +23,46 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
+			fmt.Println("🚨 Missing authorization token")
 			http.Error(w, "Missing authorization token", http.StatusUnauthorized)
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
+			fmt.Println("🚨 Invalid token format")
 			http.Error(w, "Invalid token format", http.StatusUnauthorized)
 			return
 		}
 
+		// Parse JWT Token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// Ensure signing method is HMAC
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				fmt.Println("🚨 Unexpected signing method:", token.Header["alg"])
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return jwtSecret, nil
 		})
 
-		if err != nil || !token.Valid {
+		// Error handling if token is invalid
+		if err != nil {
+			fmt.Println("🚨 Invalid or expired token:", err)
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 
+		// Extract claims
 		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
+		if !ok || !token.Valid {
+			fmt.Println("🚨 Failed to parse token claims")
 			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
 			return
 		}
 
+		fmt.Println("✅ Extracted JWT claims:", claims) // Debugging output
+
+		// Add claims to context
 		ctx := context.WithValue(r.Context(), ContextUserKey, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -68,15 +84,14 @@ func ExtractUserInfo(r *http.Request) (int, string, bool) {
 	return int(userID), role, true
 }
 
-// AdminOnlyMiddleware restricts access to admins
 func AdminOnlyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, role, ok := ExtractUserInfo(r)
+		userID, role, ok := ExtractUserInfo(r)
+		fmt.Println("Extracted UserID:", userID, "Role:", role) // Debug log
 		if !ok || role != "admin" {
 			http.Error(w, "Forbidden: Admins only", http.StatusForbidden)
 			return
 		}
-
 		next.ServeHTTP(w, r)
 	})
 }

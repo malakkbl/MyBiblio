@@ -67,13 +67,13 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 	var user models.User
 
-	// Decode JSON request body
+	// Decode request body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// Find user by email
+	// Find user in database
 	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
@@ -85,19 +85,20 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 
-	// Generate JWT token
+	// **Create JWT Token with Correct Claims**
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24h
+		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Expires in 24h
 	})
+
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
 		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return
 	}
 
-	// Return token response
+	// **Return JWT Token**
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
 }
