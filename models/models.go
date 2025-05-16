@@ -6,14 +6,14 @@ import (
 
 // Book Model
 type Book struct {
-	ID          int `gorm:"primaryKey;autoIncrement"`
-	Title       string
-	AuthorID    int
-	Author      Author `gorm:"foreignKey:AuthorID"`
-	Genres      string
-	PublishedAt time.Time
-	Price       float64
-	Stock       int
+	ID          int       `gorm:"primaryKey;autoIncrement"`
+	Title       string    `gorm:"not null" validate:"required,min=1,max=200"`
+	AuthorID    int       `gorm:"not null" validate:"required"`
+	Author      Author    `gorm:"foreignKey:AuthorID"`
+	Genres      string    `validate:"required"`
+	PublishedAt time.Time `validate:"required,ltefield=now"`
+	Price       float64   `validate:"required,gt=0"`
+	Stock       int       `validate:"required,gte=0"`
 }
 
 // Author Model

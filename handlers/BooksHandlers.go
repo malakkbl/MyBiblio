@@ -9,6 +9,7 @@ import (
 	"um6p.ma/finalproject/database"
 	"um6p.ma/finalproject/interfaces"
 	"um6p.ma/finalproject/models"
+	"um6p.ma/finalproject/validation"
 )
 
 type BookHandler struct {
@@ -38,14 +39,27 @@ func (h *BookHandler) GetBookByIDHandler(w http.ResponseWriter, r *http.Request,
 func (h *BookHandler) CreateBookHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	ctx := r.Context()
 	var newBook models.Book
+
+	// Decode JSON request body
 	if err := json.NewDecoder(r.Body).Decode(&newBook); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate the book data
+	if errors := validation.Validate(newBook); len(errors) > 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":   "Validation failed",
+			"details": errors,
+		})
 		return
 	}
 
 	// Insert into the database
 	if err := database.DB.WithContext(ctx).Create(&newBook).Error; err != nil {
-		http.Error(w, "Failed to add book", http.StatusInternalServerError)
+		http.Error(w, "Failed to add book: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -65,13 +79,24 @@ func (h *BookHandler) UpdateBookHandler(w http.ResponseWriter, r *http.Request, 
 
 	var updatedBook models.Book
 	if err := json.NewDecoder(r.Body).Decode(&updatedBook); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Validate the book data
+	if errors := validation.Validate(updatedBook); len(errors) > 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":   "Validation failed",
+			"details": errors,
+		})
 		return
 	}
 
 	// Update in the database
 	if err := database.DB.WithContext(ctx).Model(&models.Book{}).Where("id = ?", id).Updates(updatedBook).Error; err != nil {
-		http.Error(w, "Book not found or update failed", http.StatusNotFound)
+		http.Error(w, "Book not found or update failed: "+err.Error(), http.StatusNotFound)
 		return
 	}
 
