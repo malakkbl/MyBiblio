@@ -2,7 +2,23 @@
 
 ## Description
 
-**MyBiblio** is an advanced RESTful API for managing an online bookstore. It allows users to manage books, authors, customers, and orders while generating periodic sales reports to analyze performance.
+**MyBiblio** is an educational project implementing a RESTful API for online bookstore management.
+
+### Technical Overview
+The project is built with Go and uses:
+- PostgreSQL database with GORM for data persistence
+- JWT-based authentication for user security
+- Role-based access control for different user types
+- Request validation and error handling
+- RESTful endpoints for resource management
+
+### Learning Objectives
+This project focuses on understanding:
+- Backend API development principles
+- Database design and ORM usage
+- Authentication and authorization concepts
+- Input validation and error handling patterns
+- API documentation practices
 
 ---
 
@@ -28,20 +44,67 @@
   - Automatically generate daily sales reports, including:
     - Total revenue.
     - Total number of orders.
-    - Total books sold.
-    - Top-selling books.
+    - Total books sold.    - Top-selling books.
 
-### Planned Milestones
+### Development Progress
 
-Our project follows a structured development roadmap. You can track our progress through the **Milestones** section on GitHub.
+#### Current Implementation Status
+| Feature          | Implementation | Input Validation | Documentation |
+|------------------|---------------------|------------------|---------------|
+| Authentication   | ✅                  | ✅               | ✅            |
+| Books           | ✅                  | ✅               | ✅            |
+| Authors         | ✅                  | ✅               | ✅            |
+| Customers       | ✅                  | ✅               | ✅            |
+| Orders          | ✅                  | ✅               | ✅            |
+| Sales Reports   | ✅                  | ✅               | ✅            |
 
-#### **Current Milestones:**
-- **Milestone 1:** Implement a Database (PostgreSQL with GORM).
-- **Milestone 2:** Authentication & Authorization (JWT-based security).
-- **Milestone 3:** Input Validation & Error Handling.
-- **Milestone 4:** Caching & Comprehensive Testing.
-- **Milestone 5:** Containerization, CI/CD Pipeline, Monitoring & Logging.
-- **Milestone 6:** Database Migrations using Flyway.
+#### Key Features Implemented
+- **Authentication**: Basic JWT-based user authentication
+- **Input Validation**: Request validation with helpful error messages
+- **Error Handling**: Standardized error responses
+- **API Documentation**: Basic Swagger documentation available
+
+### Project Milestones & Status
+
+The project follows a structured development roadmap. Below is the current status of each milestone:
+
+#### **Completed Milestones:**
+✅ **Milestone 1: Database Implementation**
+- Implemented PostgreSQL with GORM
+- Set up database models and relationships
+- Established connection handling and configuration
+
+✅ **Milestone 2: Authentication & Authorization**
+- Implemented JWT-based security
+- Role-based access control (RBAC)
+- Secure password handling
+- Permission-based endpoints
+
+✅ **Milestone 3: Input Validation & Error Handling**
+- Comprehensive request validation
+- Custom email format validation
+- Password strength requirements
+- Standardized error responses
+- Detailed validation feedback
+
+#### **Pending Milestones:**
+🔲 **Milestone 4:** Caching & Comprehensive Testing
+- Redis caching implementation
+- Unit tests coverage
+- Integration tests
+- End-to-end testing
+- Performance testing
+
+🔲 **Milestone 5:** Containerization & CI/CD
+- Docker containerization
+- CI/CD pipeline setup
+- Monitoring implementation
+- Logging system
+
+🔲 **Milestone 6:** Database Migrations
+- Flyway integration
+- Version-controlled schemas
+- Automated migrations
 
 ---
 
@@ -72,122 +135,9 @@ Our project follows a structured development roadmap. You can track our progress
 
 ---
 
-## Usage Examples
-
-### Authentication
-First, you need to register and login to get your JWT token:
-
-#### Register a New User
-```bash
-curl -X POST http://localhost:8080/register -H "Content-Type: application/json" -d '{
-    "name": "Test Admin",
-    "email": "admin@mybiblio.com",
-    "password": "adminpass123",
-    "role": "admin"
-}'
-```
-
-#### Login
-```bash
-curl -X POST http://localhost:8080/login -H "Content-Type: application/json" -d '{
-    "email": "admin@mybiblio.com",
-    "password": "adminpass123"
-}'
-```
-
-The login response will include a JWT token. Use this token in the Authorization header for subsequent requests:
-```bash
-export TOKEN="your_jwt_token_here"
-```
-
-### Basic Endpoints
-#### Books
-- **Create a Book (Requires Admin or Manager Role)**
-  ```bash
-  curl -X POST http://localhost:8080/books \
-    -H "Content-Type: application/json" \
-    -H "Authorization: Bearer $TOKEN" \
-    -d '{
-      "title": "The Go Programming Language",
-      "author": { "id": 1, "first_name": "Alan", "last_name": "Donovan" },
-      "genres": ["Programming"],
-      "price": 45.99,
-      "stock": 100
-    }'
-  ```
-
-- **Get All Books (Public Access)**
-  ```bash
-  curl http://localhost:8080/books
-  ```
-
-### Role-Based Examples
-
-#### Manager Operations
-```bash
-# Register as Manager
-curl -X POST http://localhost:8080/register -H "Content-Type: application/json" -d '{
-    "name": "Test Manager",
-    "email": "manager@mybiblio.com",
-    "password": "managerpass123",
-    "role": "manager"
-}'
-
-# Create New Book (Allowed for Manager)
-curl -X POST http://localhost:8080/books \
-  -H "Authorization: Bearer $MANAGER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "New Book",
-    "author": {"id": 1},
-    "price": 29.99,
-    "stock": 50
-  }'
-```
-
-#### Employee Operations
-```bash
-# Register as Employee
-curl -X POST http://localhost:8080/register -H "Content-Type: application/json" -d '{
-    "name": "Test Employee",
-    "email": "employee@mybiblio.com",
-    "password": "employeepass123",
-    "role": "employee"
-}'
-
-# List Customers (Allowed for Employee)
-curl -X GET http://localhost:8080/customers \
-  -H "Authorization: Bearer $EMPLOYEE_TOKEN"
-```
-
-#### Regular User Operations
-```bash
-# Register as User
-curl -X POST http://localhost:8080/register -H "Content-Type: application/json" -d '{
-    "name": "Test User",
-    "email": "user@mybiblio.com",
-    "password": "userpass123",
-    "role": "user"
-}'
-
-# Create Order (Allowed for User)
-curl -X POST http://localhost:8080/orders \
-  -H "Authorization: Bearer $USER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerID": 1,
-    "items": [
-      {
-        "bookID": 1,
-        "quantity": 2
-      }
-    ]
-  }'
-```
-
----
-
 ## Role-Based Access Control (RBAC) Testing Guide
+
+MyBiblio implements a secure JWT-based authentication system with role-based access control (RBAC). The system includes comprehensive input validation and error handling.
 
 ### 1. Database Setup
 Ensure PostgreSQL is running and your `.env` file contains:
@@ -347,19 +297,7 @@ Create these requests in Postman and test with different user tokens:
 
 ---
 
-## Authentication & Error Handling
-
-### Authentication System
-
-MyBiblio implements a secure JWT-based authentication system with role-based access control (RBAC). The system includes comprehensive input validation and error handling.
-
-#### User Roles
-- **Admin**: Full system access and management capabilities
-- **Manager**: Manage books, authors, and generate reports
-- **Employee**: Handle orders and customer service
-- **User**: Browse books and place orders
-
-#### Authentication Endpoints
+#### Authentication & Error Handling
 
 1. **Register User**
    ```http
@@ -530,14 +468,18 @@ We welcome contributions to improve MyBiblio. To contribute:
 
 Refer to [GitHub's guide on contributing](https://docs.github.com/en/get-started/quickstart/contributing-to-projects) for best practices.
 
----
-
 ## License
 
-This project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/). Feel free to use and modify it.
+MIT License
+
+Copyright (c) 2025 Kably Malak
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish,distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 
 ---
 
-## Acknowledgments
-
-Thanks to all collaborators and contributors for their hard work and dedication to this project.
+Thank you for checking out MyBiblio! I hope you find it useful for managing your online bookstore. If you have any questions or feedback, feel free to reach out.
