@@ -1,30 +1,115 @@
 package errorhandling
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+)
 
+// ErrorResponse represents a structured error response
 type ErrorResponse struct {
-	Message string      `json:"message"`
-	Details interface{} `json:"details,omitempty"`
+	StatusCode int         `json:"-"`                 // HTTP status code
+	Code       string      `json:"code"`              // Application-specific error code
+	Message    string      `json:"message"`           // User-friendly error message
+	Details    interface{} `json:"details,omitempty"` // Additional error details
+	Debug      string      `json:"debug,omitempty"`   // Debug information (only in development)
 }
 
+// Standard error codes
+const (
+	ErrCodeNotFound       = "NOT_FOUND"
+	ErrCodeValidation     = "VALIDATION_ERROR"
+	ErrCodeDatabase       = "DATABASE_ERROR"
+	ErrCodeUnauthorized   = "UNAUTHORIZED"
+	ErrCodeForbidden      = "FORBIDDEN"
+	ErrCodeInvalidInput   = "INVALID_INPUT"
+	ErrCodeInternalServer = "INTERNAL_SERVER_ERROR"
+	ErrCodeDuplicateEntry = "DUPLICATE_ENTRY"
+	ErrCodeBadRequest     = "BAD_REQUEST"
+)
+
+// Common application errors
+var (
+	ErrBookNotFound      = NewError(http.StatusNotFound, ErrCodeNotFound, "Book not found")
+	ErrCustomerNotFound  = NewError(http.StatusNotFound, ErrCodeNotFound, "Customer not found")
+	ErrAuthorNotFound    = NewError(http.StatusNotFound, ErrCodeNotFound, "Author not found")
+	ErrOrderNotFound     = NewError(http.StatusNotFound, ErrCodeNotFound, "Order not found")
+	ErrInsufficientStock = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Insufficient stock")
+	ErrInvalidInput      = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Invalid input")
+)
+
+// Error implements the error interface
 func (e ErrorResponse) Error() string {
 	return e.Message
 }
 
-var (
-	ErrBookNotFound      = errors.New("book not found")
-	ErrCustomerNotFound  = errors.New("customer not found")
-	ErrAuthorNotFound    = errors.New("author not found")
-	ErrOrderNotFound     = errors.New("order not found")
-	ErrInsufficientStock = errors.New("insufficient stock")
-	ErrValidation        = errors.New("validation error")
-	ErrInvalidInput      = errors.New("invalid input")
-)
-
-// NewValidationError creates a new ErrorResponse for validation errors
-func NewValidationError(details interface{}) ErrorResponse {
+// NewError creates a new ErrorResponse
+func NewError(statusCode int, code string, message string) ErrorResponse {
 	return ErrorResponse{
-		Message: "Validation failed",
-		Details: details,
+		StatusCode: statusCode,
+		Code:       code,
+		Message:    message,
 	}
 }
+
+// WithDetails adds details to an ErrorResponse
+func (e ErrorResponse) WithDetails(details interface{}) ErrorResponse {
+	e.Details = details
+	return e
+}
+
+// WithDebug adds debug information to an ErrorResponse
+func (e ErrorResponse) WithDebug(debug string) ErrorResponse {
+	e.Debug = debug
+	return e
+}
+
+// HandleError writes an error response to http.ResponseWriter
+func HandleError(w http.ResponseWriter, err error) {
+	var errResp ErrorResponse
+
+	switch e := err.(type) {
+	case ErrorResponse:
+		errResp = e
+	case *json.SyntaxError:
+		errResp = NewError(http.StatusBadRequest, ErrCodeInvalidInput, "Invalid JSON format")
+	case *json.UnmarshalTypeError:
+		errResp = NewError(http.StatusBadRequest, ErrCodeInvalidInput, "Invalid data type in JSON")
+	default:
+		errResp = NewError(http.StatusInternalServerError, ErrCodeInternalServer, "Internal server error")
+	}
+
+	// Set status code and write response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(errResp.StatusCode)
+	json.NewEncoder(w).Encode(errResp)
+}
+
+// NewValidationError creates a validation error response
+func NewValidationError(details interface{}) ErrorResponse {
+	return NewError(http.StatusBadRequest, ErrCodeValidation, "Validation failed").
+		WithDetails(details)
+}
+
+// NewDatabaseError creates a database error response
+func NewDatabaseError(err error) ErrorResponse {
+	return NewError(http.StatusInternalServerError, ErrCodeDatabase, "Database operation failed").
+		WithDebug(err.Error())
+}
+
+// NewNotFoundError creates a not found error response
+func NewNotFoundError(resource string, id interface{}) ErrorResponse {
+	return NewError(
+		http.StatusNotFound,
+		ErrCodeNotFound,
+		fmt.Sprintf("%s with ID %v not found", resource, id),
+	)
+}
+
+// IsDuplicateKeyError checks if an error is a duplicate key error
+func IsDuplicateKeyError(err error) bool {
+	return errors.Is(err, ErrDuplicateKey)
+}
+
+var ErrDuplicateKey = errors.New("duplicate key error")

@@ -7,8 +7,10 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"um6p.ma/finalproject/database"
+	"um6p.ma/finalproject/errorhandling"
 	"um6p.ma/finalproject/interfaces"
 	"um6p.ma/finalproject/models"
+	"um6p.ma/finalproject/validation"
 )
 
 type AuthorHandler struct {
@@ -20,13 +22,17 @@ func (h *AuthorHandler) GetAuthorByIDHandler(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
 		return
 	}
 
 	var author models.Author
 	if err := database.DB.WithContext(ctx).First(&author, id).Error; err != nil {
-		http.Error(w, "Author not found", http.StatusNotFound)
+		errorhandling.HandleError(w, errorhandling.NewNotFoundError("Author", id))
 		return
 	}
 
@@ -39,13 +45,23 @@ func (h *AuthorHandler) CreateAuthorHandler(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	var newAuthor models.Author
 	if err := json.NewDecoder(r.Body).Decode(&newAuthor); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request body",
+		).WithDebug(err.Error()))
+		return
+	}
+
+	// Validate author data
+	if errors := validation.Validate(newAuthor); len(errors) > 0 {
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errors))
 		return
 	}
 
 	// Insert into the database
 	if err := database.DB.WithContext(ctx).Create(&newAuthor).Error; err != nil {
-		http.Error(w, "Failed to add author", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -59,19 +75,40 @@ func (h *AuthorHandler) UpdateAuthorHandler(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
 		return
 	}
 
 	var updatedAuthor models.Author
 	if err := json.NewDecoder(r.Body).Decode(&updatedAuthor); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request body",
+		).WithDebug(err.Error()))
+		return
+	}
+
+	// Validate author data
+	if errors := validation.Validate(updatedAuthor); len(errors) > 0 {
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errors))
+		return
+	}
+
+	// Check if author exists
+	var existingAuthor models.Author
+	if err := database.DB.WithContext(ctx).First(&existingAuthor, id).Error; err != nil {
+		errorhandling.HandleError(w, errorhandling.NewNotFoundError("Author", id))
 		return
 	}
 
 	// Update in the database
 	if err := database.DB.WithContext(ctx).Model(&models.Author{}).Where("id = ?", id).Updates(updatedAuthor).Error; err != nil {
-		http.Error(w, "Author not found or update failed", http.StatusNotFound)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -84,13 +121,35 @@ func (h *AuthorHandler) DeleteAuthorHandler(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
+		return
+	}
+
+	// Check if author exists and has no associated books
+	var bookCount int64
+	if err := database.DB.WithContext(ctx).Model(&models.Book{}).Where("author_id = ?", id).Count(&bookCount).Error; err != nil {
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
+		return
+	}
+
+	if bookCount > 0 {
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusConflict,
+			errorhandling.ErrCodeBadRequest,
+			"Cannot delete author with existing books",
+		).WithDetails(map[string]interface{}{
+			"bookCount": bookCount,
+		}))
 		return
 	}
 
 	// Delete from the database
 	if err := database.DB.WithContext(ctx).Delete(&models.Author{}, id).Error; err != nil {
-		http.Error(w, "Author not found or delete failed", http.StatusNotFound)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -103,7 +162,7 @@ func (h *AuthorHandler) ListAuthorsHandler(w http.ResponseWriter, r *http.Reques
 	var authors []models.Author
 
 	if err := database.DB.WithContext(ctx).Find(&authors).Error; err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 

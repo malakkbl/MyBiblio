@@ -7,6 +7,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"um6p.ma/finalproject/database"
+	"um6p.ma/finalproject/errorhandling"
 	"um6p.ma/finalproject/interfaces"
 	"um6p.ma/finalproject/models"
 	"um6p.ma/finalproject/validation"
@@ -21,13 +22,17 @@ func (h *BookHandler) GetBookByIDHandler(w http.ResponseWriter, r *http.Request,
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
 		return
 	}
 
 	var book models.Book
 	if err := database.DB.WithContext(ctx).First(&book, id).Error; err != nil {
-		http.Error(w, "Book not found", http.StatusNotFound)
+		errorhandling.HandleError(w, errorhandling.NewNotFoundError("Book", id))
 		return
 	}
 
@@ -40,26 +45,32 @@ func (h *BookHandler) CreateBookHandler(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	var newBook models.Book
 
-	// Decode JSON request body
 	if err := json.NewDecoder(r.Body).Decode(&newBook); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request body",
+		).WithDebug(err.Error()))
 		return
 	}
 
 	// Validate the book data
 	if errors := validation.Validate(newBook); len(errors) > 0 {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":   "Validation failed",
-			"details": errors,
-		})
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errors))
 		return
 	}
 
 	// Insert into the database
 	if err := database.DB.WithContext(ctx).Create(&newBook).Error; err != nil {
-		http.Error(w, "Failed to add book: "+err.Error(), http.StatusInternalServerError)
+		if errorhandling.IsDuplicateKeyError(err) {
+			errorhandling.HandleError(w, errorhandling.NewError(
+				http.StatusConflict,
+				errorhandling.ErrCodeDuplicateEntry,
+				"Book already exists",
+			))
+			return
+		}
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -73,30 +84,37 @@ func (h *BookHandler) UpdateBookHandler(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
 		return
 	}
 
 	var updatedBook models.Book
 	if err := json.NewDecoder(r.Body).Decode(&updatedBook); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request body",
+		).WithDebug(err.Error()))
 		return
 	}
 
 	// Validate the book data
 	if errors := validation.Validate(updatedBook); len(errors) > 0 {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":   "Validation failed",
-			"details": errors,
-		})
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errors))
 		return
 	}
 
 	// Update in the database
 	if err := database.DB.WithContext(ctx).Model(&models.Book{}).Where("id = ?", id).Updates(updatedBook).Error; err != nil {
-		http.Error(w, "Book not found or update failed: "+err.Error(), http.StatusNotFound)
+		if err := database.DB.WithContext(ctx).First(&models.Book{}, id).Error; err != nil {
+			errorhandling.HandleError(w, errorhandling.NewNotFoundError("Book", id))
+			return
+		}
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -109,13 +127,20 @@ func (h *BookHandler) DeleteBookHandler(w http.ResponseWriter, r *http.Request, 
 	ctx := r.Context()
 	id, err := strconv.Atoi(ps.ByName("id"))
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid ID format",
+		))
 		return
 	}
 
-	// Delete from the database
 	if err := database.DB.WithContext(ctx).Delete(&models.Book{}, id).Error; err != nil {
-		http.Error(w, "Book not found or delete failed", http.StatusNotFound)
+		if err := database.DB.WithContext(ctx).First(&models.Book{}, id).Error; err != nil {
+			errorhandling.HandleError(w, errorhandling.NewNotFoundError("Book", id))
+			return
+		}
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -149,7 +174,7 @@ func (h *BookHandler) SearchBooksHandler(w http.ResponseWriter, r *http.Request,
 
 	// Execute query
 	if err := dbQuery.Find(&books).Error; err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
