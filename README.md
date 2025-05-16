@@ -351,7 +351,7 @@ Create these requests in Postman and test with different user tokens:
 
 ### Authentication System
 
-MyBiblio uses a robust JWT-based authentication system with role-based access control (RBAC).
+MyBiblio implements a secure JWT-based authentication system with role-based access control (RBAC). The system includes comprehensive input validation and error handling.
 
 #### User Roles
 - **Admin**: Full system access and management capabilities
@@ -365,31 +365,59 @@ MyBiblio uses a robust JWT-based authentication system with role-based access co
    ```http
    POST /api/auth/register
    ```
-   - Required fields: name, email, password, role
-   - Password requirements:
-     - Minimum 8 characters
-     - At least one uppercase letter
+   **Required Fields:**
+   - `name`: String (2-100 characters)
+   - `email`: String (Valid email format)
+     - Must be 3-64 characters before @
+     - Domain must be 2-255 characters
+     - No consecutive dots
+     - Only allowed special characters (!#$%&'*+-/=?^_`{|}~.)
+   - `password`: String with requirements:
+     - Minimum 8 characters     - At least one uppercase letter
      - At least one lowercase letter
      - At least one number
      - At least one special character
+   - `role`: String (one of: admin, manager, employee, user)
 
 2. **Login**
    ```http
    POST /api/auth/login
    ```
-   - Required fields: email, password
-   - Returns: JWT token and user information
+   **Required Fields:**
+   - `email`: String (same validation as register)
+   - `password`: String
+   
+   **Returns:**
+   ```json
+   {
+     "token": "JWT_TOKEN",
+     "user": {
+       "id": 1,
+       "name": "User Name",
+       "email": "user@example.com",
+       "role": "user"
+     },
+     "permissions": ["read:books", "write:orders"]
+   }
+   ```
 
 ### Error Handling
 
-The API uses a standardized error response format:
+The API implements comprehensive error handling with detailed feedback:
 
 ```json
 {
   "code": "ERROR_CODE",
   "message": "User-friendly error message",
-  "details": {}, // Optional additional information
-  "debug": ""    // Debug information (development only)
+  "details": [
+    {
+      "field": "field_name",
+      "tag": "validation_tag",
+      "value": "invalid_value",
+      "message": "Detailed error message"
+    }
+  ],
+  "debug": "Additional debug information (development only)"
 }
 ```
 
@@ -397,11 +425,12 @@ The API uses a standardized error response format:
 
 1. **Authentication Errors**
    - `INVALID_CREDENTIALS`: Invalid email or password
-   - `INVALID_TOKEN`: Invalid authentication token
-   - `EXPIRED_TOKEN`: Authentication token has expired
-   - `MISSING_TOKEN`: Authentication token is missing
-   - `WEAK_PASSWORD`: Password does not meet security requirements
-   - `INVALID_ROLE`: Invalid user role specified
+   - `INVALID_TOKEN`: Invalid or malformed token
+   - `EXPIRED_TOKEN`: Token has expired
+   - `MISSING_TOKEN`: No token provided
+   - `WEAK_PASSWORD`: Password requirements not met
+   - `INVALID_ROLE`: Role must be one of: admin, manager, employee, user
+   - `INVALID_EMAIL`: Email format validation failed
 
 2. **Validation Errors**
    - `VALIDATION_ERROR`: Input validation failed
@@ -426,7 +455,23 @@ The API uses a standardized error response format:
    }
    ```
 
-2. **Validation Error**
+2. **Email Validation Error**
+   ```json
+   {
+     "code": "VALIDATION_ERROR",
+     "message": "Validation failed",
+     "details": [
+       {
+         "field": "email",
+         "tag": "custom_email",
+         "value": "invalid@email",
+         "message": "email must be a valid email address between 3-64 characters before @ and 2-255 characters after @, containing only allowed special characters"
+       }
+     ]
+   }
+   ```
+
+3. **Password Validation Error**
    ```json
    {
      "code": "VALIDATION_ERROR",
