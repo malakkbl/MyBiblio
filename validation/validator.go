@@ -13,13 +13,14 @@ var validate *validator.Validate
 
 func init() {
 	validate = validator.New()
-
 	// Register custom validation functions
 	validate.RegisterValidation("future_date", validateFutureDate)
 	validate.RegisterValidation("past_date", validatePastDate)
 	validate.RegisterValidation("valid_isbn", validateISBN)
 	validate.RegisterValidation("valid_status", validateOrderStatus)
 	validate.RegisterValidation("passwd", validatePassword)
+	validate.RegisterValidation("custom_email", validateEmail)
+	validate.RegisterValidation("custom_email", validateEmail)
 }
 
 // ValidationError represents a validation error
@@ -64,6 +65,8 @@ func formatErrorMessage(field string, tag string, value string) string {
 		return fmt.Sprintf("%s must be greater than or equal to %s", field, value)
 	case "email":
 		return fmt.Sprintf("%s must be a valid email address", field)
+	case "custom_email":
+		return fmt.Sprintf("%s must be a valid email address between 3-64 characters before @ and 2-255 characters after @, containing only allowed special characters", field)
 	case "url":
 		return fmt.Sprintf("%s must be a valid URL", field)
 	case "ltefield":
@@ -154,6 +157,49 @@ func validatePassword(fl validator.FieldLevel) bool {
 	}
 
 	return len(password) >= 8 && hasUpper && hasLower && hasNumber && hasSpecial
+}
+
+// validateEmail checks if the email meets our custom requirements:
+// 1. Valid email format (already handled by built-in email validator)
+// 2. No consecutive dots
+// 3. Only allowed special characters
+// 4. Domain has at least one dot
+// 5. Local part between 3 and 64 characters
+// 6. Domain part between 2 and 255 characters
+func validateEmail(fl validator.FieldLevel) bool {
+	email := fl.Field().String()
+
+	// Check for consecutive dots
+	if strings.Contains(email, "..") {
+		return false
+	}
+
+	// Split email into local and domain parts
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return false
+	}
+
+	local, domain := parts[0], parts[1]
+
+	// Check lengths
+	if len(local) < 3 || len(local) > 64 || len(domain) < 2 || len(domain) > 255 {
+		return false
+	}
+
+	// Check domain has at least one dot
+	if !strings.Contains(domain, ".") {
+		return false
+	}
+
+	// Check for allowed characters in local part
+	for _, char := range local {
+		if !unicode.IsLetter(char) && !unicode.IsNumber(char) && !strings.ContainsRune("!#$%&'*+-/=?^_`{|}~.", char) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // AddCustomError adds a custom validation error

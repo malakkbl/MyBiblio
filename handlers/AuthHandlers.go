@@ -21,13 +21,13 @@ import (
 
 type RegisterInput struct {
 	Name     string `json:"name" validate:"required,min=2,max=100"`
-	Email    string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email,custom_email"`
 	Password string `json:"password" validate:"required,min=8,max=100,passwd"`
 	Role     string `json:"role" validate:"required,oneof=admin manager employee user"`
 }
 
 type LoginInput struct {
-	Email    string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email,custom_email"`
 	Password string `json:"password" validate:"required"`
 }
 
