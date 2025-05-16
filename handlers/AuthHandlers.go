@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -12,33 +11,43 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-
 	"um6p.ma/finalproject/constants"
 	"um6p.ma/finalproject/database"
+	"um6p.ma/finalproject/errorhandling"
+	internalhttp "um6p.ma/finalproject/internal/http"
 	"um6p.ma/finalproject/models"
+	"um6p.ma/finalproject/validation"
 )
 
-// Secret key for JWT (from environment variable)
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+type RegisterInput struct {
+	Name     string `json:"name" validate:"required,min=2,max=100"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8,max=100,passwd"`
+	Role     string `json:"role" validate:"required,oneof=admin manager employee user"`
+}
+
+type LoginInput struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
 
 // RegisterUser handles user registration
 func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var input struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Role     string `json:"role"`
-	}
+	var input RegisterInput
 
 	// Decode JSON request body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request format",
+		).WithDebug(err.Error()))
 		return
 	}
 
-	// Validate role
-	if !constants.ValidRoles[input.Role] {
-		http.Error(w, "Invalid role. Must be one of: admin, user, manager, employee", http.StatusBadRequest)
+	// Validate input
+	if errs := validation.Validate(input); len(errs) > 0 {
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errs))
 		return
 	}
 
@@ -46,17 +55,25 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var existingUser models.User
 	result := database.DB.Where("email = ?", input.Email).First(&existingUser)
 	if result.Error == nil {
-		http.Error(w, "User with this email already exists", http.StatusConflict)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusConflict,
+			errorhandling.ErrCodeDuplicateEntry,
+			"Email already registered",
+		))
 		return
 	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(result.Error))
 		return
 	}
 
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusInternalServerError,
+			errorhandling.ErrCodeInternalServer,
+			"Failed to process password",
+		).WithDebug(err.Error()))
 		return
 	}
 
@@ -71,10 +88,14 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	// Save user in the database
 	if err := database.DB.Create(&user).Error; err != nil {
 		if strings.Contains(err.Error(), "unique constraint") || strings.Contains(err.Error(), "Duplicate entry") {
-			http.Error(w, "User with this email already exists", http.StatusConflict)
+			errorhandling.HandleError(w, errorhandling.NewError(
+				http.StatusConflict,
+				errorhandling.ErrCodeDuplicateEntry,
+				"Email already registered",
+			))
 			return
 		}
-		http.Error(w, "Could not create user", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
@@ -94,27 +115,38 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 // LoginUser handles user authentication and token generation
 func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	var input struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+	var input LoginInput
 	var user models.User
 
-	// Decode request body
+	// Decode and validate request body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusBadRequest,
+			errorhandling.ErrCodeInvalidInput,
+			"Invalid request format",
+		).WithDebug(err.Error()))
+		return
+	}
+
+	// Validate input
+	if errs := validation.Validate(input); len(errs) > 0 {
+		errorhandling.HandleError(w, errorhandling.NewValidationError(errs))
 		return
 	}
 
 	// Find user in database
 	if err := database.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			errorhandling.HandleError(w, errorhandling.ErrInvalidCredentials)
+			return
+		}
+		errorhandling.HandleError(w, errorhandling.NewDatabaseError(err))
 		return
 	}
 
 	// Check password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		errorhandling.HandleError(w, errorhandling.ErrInvalidCredentials)
 		return
 	}
 
@@ -129,9 +161,13 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		"exp":         time.Now().Add(time.Hour * 24).Unix(), // Expires in 24h
 	})
 
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := token.SignedString(internalhttp.GetJWTSecret())
 	if err != nil {
-		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusInternalServerError,
+			errorhandling.ErrCodeInternalServer,
+			"Failed to generate authentication token",
+		).WithDebug(err.Error()))
 		return
 	}
 
@@ -145,6 +181,7 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 			"email": user.Email,
 			"role":  user.Role,
 		},
+		"permissions": getPermissionsForRole(user.Role),
 	})
 }
 

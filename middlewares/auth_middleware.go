@@ -4,31 +4,38 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
+
 	"um6p.ma/finalproject/constants"
+	"um6p.ma/finalproject/errorhandling"
+	internalhttp "um6p.ma/finalproject/internal/http"
 )
 
-// Secret key for JWT
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+// ContextKey type for context keys
+type ContextKey string
 
-// Context Key for storing user data
-type UserContextKey string
-
+// Context keys
 const (
-	ContextUserKey UserContextKey = "user"
+	ContextUserKey ContextKey = "user"
 )
 
-// Claims represents the structure of our custom JWT claims
+// Claims represents JWT claims
 type Claims struct {
 	UserID      int      `json:"user_id"`
 	Email       string   `json:"email"`
 	Name        string   `json:"name"`
 	Role        string   `json:"role"`
 	Permissions []string `json:"permissions"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
+}
+
+// writeError writes a JSON error response
+func writeError(w http.ResponseWriter, err errorhandling.ErrorResponse) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(err.StatusCode)
+	w.Write([]byte(fmt.Sprintf(`{"code":"%s","message":"%s"}`, err.Code, err.Message)))
 }
 
 // AuthMiddleware verifies the JWT token and adds user info to context
@@ -36,13 +43,17 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "Missing authorization token", http.StatusUnauthorized)
+			writeError(w, errorhandling.ErrMissingToken)
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			http.Error(w, "Invalid token format", http.StatusUnauthorized)
+			writeError(w, errorhandling.NewError(
+				http.StatusUnauthorized,
+				errorhandling.ErrCodeInvalidToken,
+				"Invalid token format. Use 'Bearer <token>'",
+			))
 			return
 		}
 
@@ -51,18 +62,25 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return jwtSecret, nil
+			return internalhttp.GetJWTSecret(), nil
 		})
 
 		if err != nil {
-			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			if strings.Contains(err.Error(), "expired") {
+				writeError(w, errorhandling.ErrExpiredToken)
+			} else {
+				writeError(w, errorhandling.ErrInvalidToken.WithDebug(err.Error()))
+			}
 			return
 		}
 
-		// Extract claims
 		claims, ok := token.Claims.(*Claims)
 		if !ok || !token.Valid {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+			writeError(w, errorhandling.NewError(
+				http.StatusUnauthorized,
+				errorhandling.ErrCodeInvalidToken,
+				"Invalid token claims",
+			))
 			return
 		}
 
@@ -78,7 +96,7 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := r.Context().Value(ContextUserKey).(*Claims)
 			if !ok {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				writeError(w, errorhandling.ErrInvalidToken)
 				return
 			}
 
@@ -98,13 +116,28 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 			}
 
 			if !hasRole {
-				http.Error(w, "Forbidden: Insufficient role", http.StatusForbidden)
+				writeError(w, errorhandling.NewError(
+					http.StatusForbidden,
+					errorhandling.ErrCodeForbidden,
+					fmt.Sprintf("Access denied. Required roles: %s", strings.Join(roles, ", ")),
+				))
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// AdminOnlyMiddleware is a shortcut for requiring admin role
+func AdminOnlyMiddleware(next http.Handler) http.Handler {
+	return RequireRole(constants.RoleAdmin)(next)
+}
+
+// GetUserFromContext extracts user claims from the request context
+func GetUserFromContext(r *http.Request) (*Claims, bool) {
+	claims, ok := r.Context().Value(ContextUserKey).(*Claims)
+	return claims, ok
 }
 
 // RequirePermission middleware checks if user has the required permission
@@ -134,17 +167,6 @@ func RequirePermission(permission string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// GetUserFromContext extracts user claims from the request context
-func GetUserFromContext(r *http.Request) (*Claims, bool) {
-	claims, ok := r.Context().Value(ContextUserKey).(*Claims)
-	return claims, ok
-}
-
-// AdminOnlyMiddleware is a shortcut for requiring admin role
-func AdminOnlyMiddleware(next http.Handler) http.Handler {
-	return RequireRole(constants.RoleAdmin)(next)
 }
 
 // OwnerOrAdminMiddleware allows access only to the resource owner or an admin

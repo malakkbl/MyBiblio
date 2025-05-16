@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -18,6 +19,7 @@ func init() {
 	validate.RegisterValidation("past_date", validatePastDate)
 	validate.RegisterValidation("valid_isbn", validateISBN)
 	validate.RegisterValidation("valid_status", validateOrderStatus)
+	validate.RegisterValidation("passwd", validatePassword)
 }
 
 // ValidationError represents a validation error
@@ -126,6 +128,32 @@ func validateOrderStatus(fl validator.FieldLevel) bool {
 		"cancelled":  true,
 	}
 	return validStatuses[strings.ToLower(status)]
+}
+
+// validatePassword ensures password meets security requirements
+func validatePassword(fl validator.FieldLevel) bool {
+	password := fl.Field().String()
+	var (
+		hasUpper   = false
+		hasLower   = false
+		hasNumber  = false
+		hasSpecial = false
+	)
+
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	return len(password) >= 8 && hasUpper && hasLower && hasNumber && hasSpecial
 }
 
 // AddCustomError adds a custom validation error

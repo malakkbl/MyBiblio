@@ -18,25 +18,37 @@ type ErrorResponse struct {
 
 // Standard error codes
 const (
-	ErrCodeNotFound       = "NOT_FOUND"
-	ErrCodeValidation     = "VALIDATION_ERROR"
-	ErrCodeDatabase       = "DATABASE_ERROR"
-	ErrCodeUnauthorized   = "UNAUTHORIZED"
-	ErrCodeForbidden      = "FORBIDDEN"
-	ErrCodeInvalidInput   = "INVALID_INPUT"
-	ErrCodeInternalServer = "INTERNAL_SERVER_ERROR"
-	ErrCodeDuplicateEntry = "DUPLICATE_ENTRY"
-	ErrCodeBadRequest     = "BAD_REQUEST"
+	ErrCodeNotFound           = "NOT_FOUND"
+	ErrCodeValidation         = "VALIDATION_ERROR"
+	ErrCodeDatabase           = "DATABASE_ERROR"
+	ErrCodeUnauthorized       = "UNAUTHORIZED"
+	ErrCodeForbidden          = "FORBIDDEN"
+	ErrCodeInvalidInput       = "INVALID_INPUT"
+	ErrCodeInternalServer     = "INTERNAL_SERVER_ERROR"
+	ErrCodeDuplicateEntry     = "DUPLICATE_ENTRY"
+	ErrCodeBadRequest         = "BAD_REQUEST"
+	ErrCodeInvalidCredentials = "INVALID_CREDENTIALS"
+	ErrCodeInvalidToken       = "INVALID_TOKEN"
+	ErrCodeExpiredToken       = "EXPIRED_TOKEN"
+	ErrCodeMissingToken       = "MISSING_TOKEN"
+	ErrCodeWeakPassword       = "WEAK_PASSWORD"
+	ErrCodeInvalidRole        = "INVALID_ROLE"
 )
 
 // Common application errors
 var (
-	ErrBookNotFound      = NewError(http.StatusNotFound, ErrCodeNotFound, "Book not found")
-	ErrCustomerNotFound  = NewError(http.StatusNotFound, ErrCodeNotFound, "Customer not found")
-	ErrAuthorNotFound    = NewError(http.StatusNotFound, ErrCodeNotFound, "Author not found")
-	ErrOrderNotFound     = NewError(http.StatusNotFound, ErrCodeNotFound, "Order not found")
-	ErrInsufficientStock = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Insufficient stock")
-	ErrInvalidInput      = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Invalid input")
+	ErrBookNotFound       = NewError(http.StatusNotFound, ErrCodeNotFound, "Book not found")
+	ErrCustomerNotFound   = NewError(http.StatusNotFound, ErrCodeNotFound, "Customer not found")
+	ErrAuthorNotFound     = NewError(http.StatusNotFound, ErrCodeNotFound, "Author not found")
+	ErrOrderNotFound      = NewError(http.StatusNotFound, ErrCodeNotFound, "Order not found")
+	ErrInsufficientStock  = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Insufficient stock")
+	ErrInvalidInput       = NewError(http.StatusBadRequest, ErrCodeBadRequest, "Invalid input")
+	ErrInvalidCredentials = NewError(http.StatusUnauthorized, ErrCodeInvalidCredentials, "Invalid email or password")
+	ErrInvalidToken       = NewError(http.StatusUnauthorized, ErrCodeInvalidToken, "Invalid authentication token")
+	ErrExpiredToken       = NewError(http.StatusUnauthorized, ErrCodeExpiredToken, "Authentication token has expired")
+	ErrMissingToken       = NewError(http.StatusUnauthorized, ErrCodeMissingToken, "Authentication token is missing")
+	ErrWeakPassword       = NewError(http.StatusBadRequest, ErrCodeWeakPassword, "Password does not meet security requirements")
+	ErrInvalidRole        = NewError(http.StatusBadRequest, ErrCodeInvalidRole, "Invalid user role specified")
 )
 
 // Error implements the error interface

@@ -347,6 +347,110 @@ Create these requests in Postman and test with different user tokens:
 
 ---
 
+## Authentication & Error Handling
+
+### Authentication System
+
+MyBiblio uses a robust JWT-based authentication system with role-based access control (RBAC).
+
+#### User Roles
+- **Admin**: Full system access and management capabilities
+- **Manager**: Manage books, authors, and generate reports
+- **Employee**: Handle orders and customer service
+- **User**: Browse books and place orders
+
+#### Authentication Endpoints
+
+1. **Register User**
+   ```http
+   POST /api/auth/register
+   ```
+   - Required fields: name, email, password, role
+   - Password requirements:
+     - Minimum 8 characters
+     - At least one uppercase letter
+     - At least one lowercase letter
+     - At least one number
+     - At least one special character
+
+2. **Login**
+   ```http
+   POST /api/auth/login
+   ```
+   - Required fields: email, password
+   - Returns: JWT token and user information
+
+### Error Handling
+
+The API uses a standardized error response format:
+
+```json
+{
+  "code": "ERROR_CODE",
+  "message": "User-friendly error message",
+  "details": {}, // Optional additional information
+  "debug": ""    // Debug information (development only)
+}
+```
+
+#### Common Error Codes
+
+1. **Authentication Errors**
+   - `INVALID_CREDENTIALS`: Invalid email or password
+   - `INVALID_TOKEN`: Invalid authentication token
+   - `EXPIRED_TOKEN`: Authentication token has expired
+   - `MISSING_TOKEN`: Authentication token is missing
+   - `WEAK_PASSWORD`: Password does not meet security requirements
+   - `INVALID_ROLE`: Invalid user role specified
+
+2. **Validation Errors**
+   - `VALIDATION_ERROR`: Input validation failed
+   - `INVALID_INPUT`: Invalid request format or data
+   - `DUPLICATE_ENTRY`: Resource already exists
+
+3. **Authorization Errors**
+   - `UNAUTHORIZED`: Authentication required
+   - `FORBIDDEN`: Insufficient permissions
+
+4. **Database Errors**
+   - `DATABASE_ERROR`: Database operation failed
+   - `NOT_FOUND`: Requested resource not found
+
+#### Error Response Examples
+
+1. **Invalid Credentials**
+   ```json
+   {
+     "code": "INVALID_CREDENTIALS",
+     "message": "Invalid email or password"
+   }
+   ```
+
+2. **Validation Error**
+   ```json
+   {
+     "code": "VALIDATION_ERROR",
+     "message": "Validation failed",
+     "details": [
+       {
+         "field": "password",
+         "tag": "passwd",
+         "message": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+       }
+     ]
+   }
+   ```
+
+3. **Authorization Error**
+   ```json
+   {
+     "code": "FORBIDDEN",
+     "message": "Access denied. Required roles: admin, manager"
+   }
+   ```
+
+---
+
 ## API Documentation
 
 The full API documentation is available in the `swagger.json` file. Use tools like [Swagger UI](https://swagger.io/tools/swagger-ui/) to visualize and interact with the API.

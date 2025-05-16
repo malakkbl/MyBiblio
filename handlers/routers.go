@@ -1,15 +1,14 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 	"um6p.ma/finalproject/constants"
-	"um6p.ma/finalproject/database"
+	"um6p.ma/finalproject/errorhandling"
 	"um6p.ma/finalproject/inmemorystores"
-	"um6p.ma/finalproject/middlewares"
-	"um6p.ma/finalproject/models"
+	httputil "um6p.ma/finalproject/internal/http"
 )
 
 // SetupRouter initializes and returns the router
@@ -26,108 +25,49 @@ func SetupRouter() *httprouter.Router {
 
 	router := httprouter.New()
 
+	// Custom error handler for router
+	router.PanicHandler = func(w http.ResponseWriter, r *http.Request, err interface{}) {
+		errorhandling.HandleError(w, errorhandling.NewError(
+			http.StatusInternalServerError,
+			errorhandling.ErrCodeInternalServer,
+			"Internal server error",
+		).WithDebug(fmt.Sprint(err)))
+	}
+
 	// Public routes (no authentication required)
 	router.POST("/login", LoginUser)
 	router.POST("/register", RegisterUser)
 
 	// Books routes
-	router.GET("/books/:id", wrapMiddleware(bookHandler.GetBookByIDHandler, "read:books"))
-	router.GET("/books", wrapMiddleware(bookHandler.SearchBooksHandler, "read:books"))
-	router.POST("/books", wrapRolesMiddleware(bookHandler.CreateBookHandler, constants.RoleAdmin, constants.RoleManager))
-	router.PUT("/books/:id", wrapRolesMiddleware(bookHandler.UpdateBookHandler, constants.RoleAdmin, constants.RoleManager))
-	router.DELETE("/books/:id", wrapRoleMiddleware(bookHandler.DeleteBookHandler, constants.RoleAdmin))
+	router.GET("/books/:id", httputil.Wrap(bookHandler.GetBookByIDHandler, "read:books"))
+	router.GET("/books", httputil.Wrap(bookHandler.SearchBooksHandler, "read:books"))
+	router.POST("/books", httputil.WrapWithRoles(bookHandler.CreateBookHandler, constants.RoleAdmin, constants.RoleManager))
+	router.PUT("/books/:id", httputil.WrapWithRoles(bookHandler.UpdateBookHandler, constants.RoleAdmin, constants.RoleManager))
+	router.DELETE("/books/:id", httputil.WrapWithRole(bookHandler.DeleteBookHandler, constants.RoleAdmin))
 
 	// Authors routes
-	router.GET("/authors/:id", wrapMiddleware(authorHandler.GetAuthorByIDHandler, "read:authors"))
-	router.GET("/authors", wrapMiddleware(authorHandler.ListAuthorsHandler, "read:authors"))
-	router.POST("/authors", wrapRolesMiddleware(authorHandler.CreateAuthorHandler, constants.RoleAdmin, constants.RoleManager))
-	router.PUT("/authors/:id", wrapRolesMiddleware(authorHandler.UpdateAuthorHandler, constants.RoleAdmin, constants.RoleManager))
-	router.DELETE("/authors/:id", wrapRoleMiddleware(authorHandler.DeleteAuthorHandler, constants.RoleAdmin))
+	router.GET("/authors/:id", httputil.Wrap(authorHandler.GetAuthorByIDHandler, "read:authors"))
+	router.GET("/authors", httputil.Wrap(authorHandler.ListAuthorsHandler, "read:authors"))
+	router.POST("/authors", httputil.WrapWithRoles(authorHandler.CreateAuthorHandler, constants.RoleAdmin, constants.RoleManager))
+	router.PUT("/authors/:id", httputil.WrapWithRoles(authorHandler.UpdateAuthorHandler, constants.RoleAdmin, constants.RoleManager))
+	router.DELETE("/authors/:id", httputil.WrapWithRole(authorHandler.DeleteAuthorHandler, constants.RoleAdmin))
 
 	// Customers routes
-	router.GET("/customers/:id", wrapRolesMiddleware(customerHandler.GetCustomerByIDHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
-	router.GET("/customers", wrapRolesMiddleware(customerHandler.ListCustomersHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
-	router.POST("/customers", wrapRolesMiddleware(customerHandler.CreateCustomerHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
-	router.PUT("/customers/:id", wrapRolesMiddleware(customerHandler.UpdateCustomerHandler, constants.RoleAdmin, constants.RoleManager))
-	router.DELETE("/customers/:id", wrapRoleMiddleware(customerHandler.DeleteCustomerHandler, constants.RoleAdmin))
+	router.GET("/customers/:id", httputil.WrapWithRoles(customerHandler.GetCustomerByIDHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
+	router.GET("/customers", httputil.WrapWithRoles(customerHandler.ListCustomersHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
+	router.POST("/customers", httputil.WrapWithRoles(customerHandler.CreateCustomerHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
+	router.PUT("/customers/:id", httputil.WrapWithRoles(customerHandler.UpdateCustomerHandler, constants.RoleAdmin, constants.RoleManager))
+	router.DELETE("/customers/:id", httputil.WrapWithRole(customerHandler.DeleteCustomerHandler, constants.RoleAdmin))
 
 	// Orders routes - More granular control
-	router.GET("/orders", wrapRolesMiddleware(orderHandler.GetAllOrdersHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
-	router.GET("/orders/:id", wrapMiddleware(orderHandler.GetOrderByIDHandler, "read:orders"))
-	router.POST("/orders", wrapMiddleware(orderHandler.CreateOrderHandler, "write:orders"))
-	router.PUT("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.UpdateOrderHandler, extractOrderOwnerID))
-	router.DELETE("/orders/:id", wrapOwnerOrAdminMiddleware(orderHandler.DeleteOrderHandler, extractOrderOwnerID))
+	router.GET("/orders", httputil.WrapWithRoles(orderHandler.GetAllOrdersHandler, constants.RoleAdmin, constants.RoleManager, constants.RoleEmployee))
+	router.GET("/orders/:id", httputil.Wrap(orderHandler.GetOrderByIDHandler, "read:orders"))
+	router.POST("/orders", httputil.Wrap(orderHandler.CreateOrderHandler, "write:orders"))
+	router.PUT("/orders/:id", httputil.WrapWithOwnerOrAdmin(orderHandler.UpdateOrderHandler, httputil.ExtractOrderOwnerID))
+	router.DELETE("/orders/:id", httputil.WrapWithOwnerOrAdmin(orderHandler.DeleteOrderHandler, httputil.ExtractOrderOwnerID))
 
 	// Sales reports - Admin and Manager only
-	router.GET("/sales-reports", wrapRolesMiddleware(GetSalesReportHandler, constants.RoleAdmin, constants.RoleManager))
+	router.GET("/sales-reports", httputil.WrapWithRoles(GetSalesReportHandler, constants.RoleAdmin, constants.RoleManager))
 
 	return router
-}
-
-// Middleware wrapper functions
-func wrapMiddleware(handler httprouter.Handle, permission string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// Chain middleware: Auth -> Permission -> Handler
-		finalHandler := middlewares.RequirePermission(permission)(
-			middlewares.AuthMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					handler(w, r, ps)
-				}),
-			),
-		)
-		finalHandler.ServeHTTP(w, r)
-	}
-}
-
-func wrapRoleMiddleware(handler httprouter.Handle, role string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		finalHandler := middlewares.RequireRole(role)(
-			middlewares.AuthMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					handler(w, r, ps)
-				}),
-			),
-		)
-		finalHandler.ServeHTTP(w, r)
-	}
-}
-
-func wrapRolesMiddleware(handler httprouter.Handle, roles ...string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		finalHandler := middlewares.RequireRole(roles...)(
-			middlewares.AuthMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					handler(w, r, ps)
-				}),
-			),
-		)
-		finalHandler.ServeHTTP(w, r)
-	}
-}
-
-func wrapOwnerOrAdminMiddleware(handler httprouter.Handle, extractOwnerID func(*http.Request) int) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		finalHandler := middlewares.OwnerOrAdminMiddleware(extractOwnerID,
-			middlewares.AuthMiddleware(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					handler(w, r, ps)
-				}),
-			),
-		)
-		finalHandler.ServeHTTP(w, r)
-	}
-}
-
-func extractOrderOwnerID(r *http.Request) int {
-	params := httprouter.ParamsFromContext(r.Context())
-	orderID, err := strconv.Atoi(params.ByName("id"))
-	if err != nil {
-		return 0
-	}
-
-	var order models.Order
-	if err := database.DB.First(&order, orderID).Error; err != nil {
-		return 0
-	}
-	return order.CustomerID
 }
