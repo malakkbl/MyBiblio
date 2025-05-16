@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
 
+	"um6p.ma/finalproject/constants"
 	"um6p.ma/finalproject/database"
 	"um6p.ma/finalproject/models"
 )
@@ -23,12 +25,18 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
-		Role     string `json:"role"` // Admin/User roles
+		Role     string `json:"role"`
 	}
 
 	// Decode JSON request body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate role
+	if !constants.ValidRoles[input.Role] {
+		http.Error(w, fmt.Sprintf("Invalid role. Must be one of: admin, user, manager, employee"), http.StatusBadRequest)
 		return
 	}
 
@@ -56,7 +64,10 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "User registered successfully"})
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "User registered successfully",
+		"role":    user.Role,
+	})
 }
 
 // LoginUser handles user authentication and token generation
@@ -85,11 +96,15 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 
-	// **Create JWT Token with Correct Claims**
+	// Create JWT Token with enhanced claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"role":    user.Role,
-		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Expires in 24h
+		"user_id":     user.ID,
+		"email":       user.Email,
+		"name":        user.Name,
+		"role":        user.Role,
+		"permissions": getPermissionsForRole(user.Role),
+		"iat":         time.Now().Unix(),
+		"exp":         time.Now().Add(time.Hour * 24).Unix(), // Expires in 24h
 	})
 
 	tokenString, err := token.SignedString(jwtSecret)
@@ -98,7 +113,52 @@ func LoginUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 
-	// **Return JWT Token**
+	// Return JWT Token with user info
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": tokenString,
+		"user": map[string]interface{}{
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
+			"role":  user.Role,
+		},
+	})
+}
+
+// getPermissionsForRole returns a list of permissions based on the user's role
+func getPermissionsForRole(role string) []string {
+	switch role {
+	case constants.RoleAdmin:
+		return []string{
+			"read:all",
+			"write:all",
+			"delete:all",
+			"manage:users",
+			"manage:roles",
+			"generate:reports",
+		}
+	case constants.RoleManager:
+		return []string{
+			"read:all",
+			"write:books",
+			"write:authors",
+			"write:orders",
+			"generate:reports",
+		}
+	case constants.RoleEmployee:
+		return []string{
+			"read:all",
+			"write:orders",
+			"write:customers",
+		}
+	case constants.RoleUser:
+		return []string{
+			"read:books",
+			"read:authors",
+			"write:orders",
+		}
+	default:
+		return []string{"read:books"}
+	}
 }
