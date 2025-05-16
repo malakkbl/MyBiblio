@@ -2,14 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 
 	"um6p.ma/finalproject/constants"
 	"um6p.ma/finalproject/database"
@@ -36,7 +38,18 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	// Validate role
 	if !constants.ValidRoles[input.Role] {
-		http.Error(w, fmt.Sprintf("Invalid role. Must be one of: admin, user, manager, employee"), http.StatusBadRequest)
+		http.Error(w, "Invalid role. Must be one of: admin, user, manager, employee", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user already exists
+	var existingUser models.User
+	result := database.DB.Where("email = ?", input.Email).First(&existingUser)
+	if result.Error == nil {
+		http.Error(w, "User with this email already exists", http.StatusConflict)
+		return
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -57,6 +70,10 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	// Save user in the database
 	if err := database.DB.Create(&user).Error; err != nil {
+		if strings.Contains(err.Error(), "unique constraint") || strings.Contains(err.Error(), "Duplicate entry") {
+			http.Error(w, "User with this email already exists", http.StatusConflict)
+			return
+		}
 		http.Error(w, "Could not create user", http.StatusInternalServerError)
 		return
 	}
@@ -64,9 +81,14 @@ func RegisterUser(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "User registered successfully",
-		"role":    user.Role,
+		"user": map[string]interface{}{
+			"id":    user.ID,
+			"name":  user.Name,
+			"email": user.Email,
+			"role":  user.Role,
+		},
 	})
 }
 
